@@ -1,0 +1,48 @@
+{
+  "name": "call-your-ui",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Call your app: talk to GPT Realtime and it edits the screen through your CopilotKit frontend tools.",
+  "packageManager": "pnpm@10.33.4",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "predev": "pnpm catalog:export",
+    "dev": "next dev --port 3300",
+    "prebuild": "pnpm catalog:export",
+    "build": "next build",
+    "start": "next start --port ${PORT:-3300}",
+    "typecheck": "tsc --noEmit",
+    "catalog:export": "tsx --tsconfig tsconfig.json scripts/export-catalog.ts",
+    "test": "vitest run",
+    "test:smoke": "tsx --tsconfig tsconfig.json scripts/smoke-compose.ts",
+    "e2e:voice": "node e2e/make-voice.mjs",
+    "e2e": "node e2e/live-call.mjs"
+  },
+  "dependencies": {
+    "@a2ui/agent": "0.1.0",
+    "@ag-ui/client": "1.0.4",
+    "@copilotkit/core": "2.0.0-rc.53",
+    "@copilotkit/react-core": "2.0.0-rc.53",
+    "@copilotkit/runtime": "2.0.0-rc.53",
+    "@copilotkit/shared": "2.0.0-rc.53",
+    "motion": "14.9.0",
+    "next": "16.4.6",
+    "openai": "7.34.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "rxjs": "7.8.1",
+    "zod": "^4.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "puppeteer-core": "25.14.0",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3",
+    "vitest": "5.1.0"
+  },
+  "license": "MIT"
+}
