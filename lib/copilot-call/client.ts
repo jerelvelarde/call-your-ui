@@ -6,7 +6,6 @@ import type { RealtimeClientEvent, RealtimeServerEvent } from "./events";
 import { createResponseSequencer } from "./sequencer";
 
 const CALLS_URL = "https://api.openai.com/v1/realtime/calls";
-const TOKEN_URL = "/api/realtime/token";
 const OPEN_TIMEOUT_MS = 15_000;
 
 export type RealtimeErrorKind = "no_key" | "token" | "mic" | "connection" | "aborted";
@@ -41,6 +40,8 @@ export interface RealtimeConnection {
 }
 
 export interface ConnectOptions {
+  /** This app's route that mints a short-lived client secret (POST). */
+  sessionUrl: string;
   onEvent: (event: RealtimeServerEvent) => void;
   /** The session ended without `close()` being called (network drop, the server hung up). */
   onClose: (reason: string) => void;
@@ -61,10 +62,10 @@ interface TokenResponse {
   error?: string;
 }
 
-async function fetchToken(signal?: AbortSignal): Promise<{ value: string; model: string }> {
+async function fetchToken(sessionUrl: string, signal?: AbortSignal): Promise<{ value: string; model: string }> {
   let res: Response;
   try {
-    res = await fetch(TOKEN_URL, { method: "POST", cache: "no-store", signal });
+    res = await fetch(sessionUrl, { method: "POST", cache: "no-store", signal });
   } catch {
     throw new RealtimeError("token", "Could not reach this app's server to start the voice session.");
   }
@@ -173,7 +174,7 @@ async function readCallError(res: Response): Promise<string> {
  * Opens a Realtime session. Call it from a user gesture (a tap): the audio context is created before the
  * first await, so the browser lets it play.
  */
-export async function connectRealtime({ onEvent, onClose, signal }: ConnectOptions): Promise<RealtimeConnection> {
+export async function connectRealtime({ sessionUrl, onEvent, onClose, signal }: ConnectOptions): Promise<RealtimeConnection> {
   if (signal?.aborted) throw aborted();
   /** Called after every await: a cancelled connect stops there, and the catch below releases what it opened. */
   const checkpoint = () => {
@@ -216,7 +217,7 @@ export async function connectRealtime({ onEvent, onClose, signal }: ConnectOptio
   };
 
   try {
-    const token = await fetchToken(signal);
+    const token = await fetchToken(sessionUrl, signal);
     // Cancelled while the secret was minted: stop before the browser asks for the mic.
     checkpoint();
     mic = await openMic();
@@ -297,7 +298,7 @@ export async function connectRealtime({ onEvent, onClose, signal }: ConnectOptio
     };
     events.addEventListener("close", () => lost("The voice session ended."));
     peer.addEventListener("connectionstatechange", () => {
-      if (peer.connectionState === "failed") lost("The voice connection dropped. Check your network and tap to reconnect.");
+      if (peer.connectionState === "failed") lost("The voice connection dropped. Check your network and call again.");
     });
 
     const mic$ = mic;

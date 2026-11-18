@@ -37,7 +37,17 @@ export interface ResponseCancelEvent {
   type: "response.cancel";
 }
 
-export type RealtimeClientEvent = ConversationItemCreateEvent | ResponseCreateEvent | ResponseCancelEvent;
+/** Replaces the session's instructions and tools (the rest of the session config stays). */
+export interface SessionUpdateEvent {
+  type: "session.update";
+  session: { type: "realtime" } & Record<string, unknown>;
+}
+
+export type RealtimeClientEvent =
+  | ConversationItemCreateEvent
+  | ResponseCreateEvent
+  | ResponseCancelEvent
+  | SessionUpdateEvent;
 
 /* ───────────────────────── server → client ───────────────────────── */
 

@@ -95,7 +95,7 @@ async function failureKind(work: Promise<unknown>) {
   }
 }
 
-const noop = { onEvent: () => {}, onClose: () => {} };
+const noop = { sessionUrl: "/api/test-session", onEvent: () => {}, onClose: () => {} };
 
 describe("connectRealtime with a signal", () => {
   afterEach(() => {
@@ -118,6 +118,7 @@ describe("connectRealtime with a signal", () => {
     await sleep(20);
     controller.abort();
     expect(await failureKind(pending)).toBe("aborted");
+    expect(env.urls[0]).toBe("/api/test-session");
     expect(env.signals[0]?.aborted).toBe(true);
     expect(env.micAsks).toBe(0);
   });
