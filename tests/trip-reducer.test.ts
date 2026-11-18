@@ -136,6 +136,23 @@ describe("applyAction", () => {
     expect(dayLabel(blank, 1)).toBe("Day 2");
   });
 
+  it("a second create_trip replaces the whole trip, dates and budget included", () => {
+    const dated = apply(created(), { type: "set_trip_details", startDate: "2026-12-11", budget: 500 });
+    const porto = apply(dated, {
+      type: "create_trip",
+      title: "Two days in Porto",
+      days: [{ weekday: "Mon", stops: [] }, { weekday: "Tue", stops: [] }],
+    });
+    expect(porto.startDate).toBeUndefined();
+    expect(porto.budget).toBeUndefined();
+    expect(porto.destination).toBeUndefined();
+    expect(porto.view).toBe("days");
+    expect(porto.days.map((d) => d.weekday)).toEqual(["Mon", "Tue"]);
+    expect(dayLabel(porto, 0)).toBe("Mon");
+    expect(porto.revision).toBe(dated.revision + 1);
+    expect(porto.nextId).toBeGreaterThan(dated.nextId);
+  });
+
   it("adds an untimed stop after the timed ones and keeps its position among untimed", () => {
     const trip = apply(created(), { type: "add_stop", dayId: "d3", stop: { title: "Walk the gardens" } });
     const withSecond = apply(trip, { type: "add_stop", dayId: "d3", stop: { title: "Coffee" }, position: 1 });

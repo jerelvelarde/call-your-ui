@@ -8,6 +8,18 @@
     if (!ctx) {
       ctx = new AudioContext({ sampleRate: 48000 });
       dest = ctx.createMediaStreamDestination();
+      // A faint room-noise floor (about -54 dBFS), like a real mic. Pure digital silence makes WebRTC
+      // stop sending audio, and then the server's voice detector never hears the caller stop talking.
+      const noise = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+      const samples = noise.getChannelData(0);
+      for (let i = 0; i < samples.length; i++) samples[i] = Math.random() * 2 - 1;
+      const floor = ctx.createBufferSource();
+      floor.buffer = noise;
+      floor.loop = true;
+      const gain = ctx.createGain();
+      gain.gain.value = 0.002;
+      floor.connect(gain).connect(dest);
+      floor.start();
     }
     return { ctx, dest };
   };
@@ -56,9 +68,43 @@
     },
   };
 
+  // Every event on the Realtime data channel, both ways (type plus the fields worth reading), for result.json.
+  const events = [];
+  window.__events = events;
+  const brief = (e) => {
+    const out = { t: Date.now(), type: e.type };
+    if (e.error) out.error = e.error.message ?? e.error;
+    if (e.transcript) out.transcript = e.transcript;
+    if (e.response) {
+      out.status = e.response.status;
+      out.details = e.response.status_details?.error?.message ?? e.response.status_details?.reason;
+      out.output = (e.response.output ?? []).map((o) => (o.type === "function_call" ? `${o.name}(${o.status})` : o.type));
+    }
+    if (e.item?.type === "function_call_output") out.output = e.item.output.slice(0, 160);
+    if (e.session) out.session = Object.keys(e.session).join(",");
+    return out;
+  };
   const NativePC = window.RTCPeerConnection;
   function RecordingPC(...args) {
     const pc = new NativePC(...args);
+    const nativeChannel = pc.createDataChannel.bind(pc);
+    pc.createDataChannel = (...a) => {
+      const channel = nativeChannel(...a);
+      channel.addEventListener("message", (m) => {
+        try {
+          const e = JSON.parse(m.data);
+          if (!/delta$/.test(e.type)) events.push({ dir: "in", ...brief(e) });
+        } catch {}
+      });
+      const send = channel.send.bind(channel);
+      channel.send = (data) => {
+        try {
+          events.push({ dir: "out", ...brief(JSON.parse(data)) });
+        } catch {}
+        return send(data);
+      };
+      return channel;
+    };
     pc.addEventListener("track", (event) => {
       if (event.track.kind !== "audio" || remote.recorder) return;
       const rec = new MediaRecorder(new MediaStream([event.track]), { mimeType: "audio/webm;codecs=opus" });

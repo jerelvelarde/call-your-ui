@@ -3,6 +3,7 @@
  * is never mutated, and an invalid action changes nothing and says why in words the voice can use.
  */
 import { addDays, formatShort, isIsoDate, shiftWeekday, weekdayOf } from "./dates";
+import { EMPTY_TRIP } from "./types";
 import type { ActionResult, Day, Stop, StopInput, Trip, TripAction } from "./types";
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -90,21 +91,18 @@ export function applyAction(trip: Trip, action: TripAction): ActionResult {
         }),
       );
       const count = days.reduce((n, d) => n + d.stops.length, 0);
-      return done(
-        trip,
-        clean({
-          title: action.title.trim(),
-          destination: action.destination,
-          currency: action.currency ?? trip.currency,
-          startDate: undefined,
-          budget: undefined,
-          view: "days" as const,
-          days,
-          nextId,
-        }),
-        dayIds,
-        `Planned ${days.length} days with ${count} stops.`,
-      );
+      // A new trip replaces everything: no start date, budget or destination carries over.
+      const next: Trip = clean({
+        ...EMPTY_TRIP,
+        title: action.title.trim(),
+        destination: action.destination,
+        currency: action.currency ?? trip.currency,
+        days,
+        nextId,
+        lastChanged: dayIds,
+        revision: trip.revision + 1,
+      });
+      return { ok: true, trip: next, message: `Planned ${days.length} days with ${count} stops.` };
     }
 
     case "add_stop": {

@@ -10,7 +10,9 @@ import puppeteer from "puppeteer-core";
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const BASE = process.env.BASE ?? "http://localhost:3300";
 const CHROME = process.env.CHROME ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-const LINES = JSON.parse(fs.readFileSync(path.join(ROOT, "e2e/lines.json"), "utf8"));
+const ALL_LINES = JSON.parse(fs.readFileSync(path.join(ROOT, "e2e/lines.json"), "utf8"));
+// LINES=1 runs only the first line, for debugging.
+const LINES = ALL_LINES.slice(0, Number(process.env.LINES ?? ALL_LINES.length));
 const VOICE = LINES.map((_, i) => fs.readFileSync(path.join(ROOT, `e2e/voice/line-${i + 1}.wav`)).toString("base64"));
 const STAMP = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 const TAKE = path.join(ROOT, "e2e/takes", STAMP);
@@ -231,6 +233,8 @@ try {
   fs.writeFileSync(path.join(TAKE, "frames.json"), JSON.stringify({ frames }));
   fs.writeFileSync(path.join(TAKE, "lines.json"), JSON.stringify(played, null, 2));
   const final = await state().catch(() => null);
+  const events = await page.evaluate(() => window.__events ?? []).catch(() => []);
+  fs.writeFileSync(path.join(TAKE, "events.json"), JSON.stringify(events.map((e) => ({ ...e, t: e.t - t0 })), null, 2));
   fs.writeFileSync(path.join(TAKE, "result.json"), JSON.stringify({ ok: !failed, results, error: failed?.message ?? null, trip: final?.trip }, null, 2));
   await browser.close();
 }
