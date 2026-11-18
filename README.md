@@ -2,6 +2,10 @@
 
 Call your app. Talk, and the screen changes.
 
+![A trip plan in calendar view during a call: the call pill at the bottom says "Speaking"](docs/demo.jpg)
+
+*A frame from a real recorded call: "Put it on my calendar, starting Friday the eleventh."*
+
 A desktop trip planner you can phone. Press **Call** and say *"Plan me three days in Lisbon, Friday to Sunday"*, and the plan fills in. *"Move the castle to Saturday morning"* slides the card over. *"Roughly what's this going to cost?"* draws a cost breakdown under the plan. *"Put it on my calendar, starting Friday the eleventh"* turns the days into a calendar.
 
 The voice is OpenAI's GPT Realtime. The edits are ordinary [CopilotKit](https://github.com/CopilotKit/CopilotKit) frontend tools: the same `useFrontendTool` tools a CopilotKit chat would call. A small hook, `useCopilotCall`, hands every registered tool and every piece of agent context to the voice session, runs the tools the voice calls, and sends the results back.
@@ -34,7 +38,7 @@ you ── voice (WebRTC) ──▶ GPT Realtime
 1. The app registers its edits with `useFrontendTools` and shares the plan with `useAgentContext` ([components/use-trip-tools.ts](components/use-trip-tools.ts)). Nothing there knows about voice.
 2. `POST /api/realtime/session` mints a short-lived client secret. Your OpenAI key never reaches the browser.
 3. `useCopilotCall` opens the call and sends a `session.update` with the tools (converted from their schemas) and the instructions, with CopilotKit's context appended. It sends a new one whenever the context changes, so the voice always sees what's on screen.
-4. When the model calls a tool, the hook validates the arguments against the tool's schema and runs its handler with a deadline and an abort signal. It returns the result. Several calls in one turn run together and get one response.
+4. When the model calls a tool, the hook validates the arguments against the tool's schema and runs its handler with a deadline and an abort signal, as soon as that call is written. Several calls in one turn are answered together, after the app has re-rendered, so the voice never speaks from an old plan.
 5. `show_panel` sends anything the plan can't show by itself to a CopilotKit agent that writes [A2UI](https://github.com/google/A2UI), and the panel renders under the plan.
 
 ## Use it in your own CopilotKit app
@@ -70,7 +74,7 @@ Options: `instructions`, `agentId` (which agent-scoped tools and context to use)
 ## Tests
 
 - `pnpm test` runs the unit tests: the trip model, the tool bridge, the call loop and the session route. No network.
-- `pnpm e2e:voice && pnpm e2e` makes a real call against `pnpm dev` with a synthesized caller. It plays each line of the demo script into a fake microphone, checks the plan after each one, and saves a screen recording to `e2e/takes/`. It needs `OPENAI_API_KEY`.
+- `pnpm e2e:voice && pnpm e2e` makes a real call against `pnpm dev` with a synthesized caller. It plays each line of the demo script into a fake microphone, checks the plan after each one, and saves a screen recording to `e2e/takes/`. It needs `OPENAI_API_KEY`. The model plans differently on every call, so the checks look at the plan's shape (a castle on Saturday morning, a cheaper dinner, a calendar starting on a Friday the 11th), not exact stops. An unsteady network can drop the call.
 
 ## Built with
 
