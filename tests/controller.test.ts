@@ -147,6 +147,26 @@ describe("createCallController", () => {
     expect(second.session.instructions).toContain("s4 moved");
   });
 
+  it("waits for the app to commit a context change made after the handler returns", async () => {
+    const context: Record<string, ScopedContext> = { a: { description: "Trip plan", value: "empty" } };
+    const h = harness(
+      [
+        tool("move_stop", async () => {
+          // Like a React state setter: the context only changes once the app re-renders.
+          setTimeout(() => (context.a = { description: "Trip plan", value: "s4 moved later" }), 0);
+          return "moved";
+        }),
+      ],
+      context,
+    );
+    h.controller.open();
+    h.controller.handle(done(fnCall("a", "move_stop", { id: "s4" })));
+    await flush();
+    expect(h.log).toEqual(["send:session.update", "send:session.update", "turn:[output:a,response.create]"]);
+    const second = h.sent[1] as unknown as { session: { instructions: string } };
+    expect(second.session.instructions).toContain("s4 moved later");
+  });
+
   it("dispose aborts running handlers and sends nothing after", async () => {
     let signal: AbortSignal | undefined;
     const h = harness([

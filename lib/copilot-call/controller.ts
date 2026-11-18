@@ -34,7 +34,19 @@ export interface CallControllerOptions {
   onStatus(status: CallStatus): void;
   onTranscript(entry: TranscriptEntry): void;
   onError(message: string): void;
+  /**
+   * Resolves once the app has committed what the tools changed, so the next session.update carries
+   * it. The default waits two macrotask hops: enough for a React commit scheduled by a state setter
+   * (its layout effects update CopilotKit's context). Not requestAnimationFrame: it pauses in hidden tabs.
+   */
+  settle?: () => Promise<void>;
 }
+
+const nextTask = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+const defaultSettle = async () => {
+  await nextTask();
+  await nextTask();
+};
 
 export interface CallController {
   /** Call once the data channel is open: sends the first session.update. */
@@ -105,9 +117,11 @@ export function createCallController(opts: CallControllerOptions): CallControlle
     const results = await Promise.all(
       calls.map((call) => runToolCall(findTool(call.name), call, { signal: stop.signal, deadlineMs: opts.toolDeadlineMs })),
     );
+    // The tools may have changed what the model should see (the plan): let the app commit it, then
+    // update the session before asking the model to speak.
+    await (opts.settle ?? defaultSettle)();
     toolsRunning--;
     if (disposed) return;
-    // The tools may have changed what the model should see (the plan): update it before it speaks.
     syncSession();
     opts.turn(
       ...calls.map(
