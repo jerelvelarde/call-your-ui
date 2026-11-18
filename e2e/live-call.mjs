@@ -56,7 +56,8 @@ const CHECKS = [
     if (!old) return "there was no fado dinner to swap";
     const cheaper = (s) => old.estimate === undefined || (s.estimate ?? Infinity) < old.estimate;
     const now = allStops(trip).find((s) => s.id === old.id);
-    if (now) return /fado/i.test(now.title) ? "the fado dinner is still there" : cheaper(now) ? null : "the swapped dinner isn't cheaper";
+    // Swapped in place: same stop, new title, lower estimate ("something cheaper" may still mention fado).
+    if (now) return now.title === old.title ? "the fado dinner is still there" : cheaper(now) ? null : "the swapped dinner isn't cheaper";
     const beforeIds = new Set(allStops(before).map((s) => s.id));
     const replacement = allStops(trip).find(
       (s) => !beforeIds.has(s.id) && s.day.id === old.day.id && (s.time ?? "") >= "17:00" && !/fado/i.test(s.title),
