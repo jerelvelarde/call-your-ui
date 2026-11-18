@@ -1,86 +1,81 @@
-# Realtime Gen UI
+# Call Your UI
 
-Talk to GPT Realtime, and the answer draws itself. When an answer has structure (a comparison, a plan, a dashboard, a form), the voice hands a short brief to a CopilotKit agent. That agent writes A2UI, and the view streams onto the page one component at a time while the voice keeps talking. Press a button on a view and it updates in place, and the voice hears about it.
+Call your app. Talk, and the screen changes.
 
-Built on the team's latest work:
+A desktop trip planner you can phone. Press **Call** and say *"Plan me three days in Lisbon, Friday to Sunday"*, and the plan fills in. *"Move the castle to Saturday morning"* slides the card over. *"Roughly what's this going to cost?"* draws a cost breakdown under the plan. *"Put it on my calendar, starting Friday the eleventh"* turns the days into a calendar.
 
-- **CopilotKit 2.0** (`2.0.0-rc.53`, the `next` tag on npm): the runtime, `useAgent`, and the generative UI renderer with the standard catalog.
-- **The A2UI Playground** (`examples/showcases/a2ui-playground` in CopilotKit/CopilotKit, live at a2ui.open.bot). Its UI agent is ported here: A2UI Express streamed through `@a2ui/agent` 0.1.0, one compile retry, and a view record so later redraws can find the view.
+The voice is OpenAI's GPT Realtime. The edits are ordinary [CopilotKit](https://github.com/CopilotKit/CopilotKit) frontend tools: the same `useFrontendTool` tools a CopilotKit chat would call. A small hook, `useCopilotCall`, hands every registered tool and every piece of agent context to the voice session, runs the tools the voice calls, and sends the results back.
+
+## Run it
+
+You need Node 22+, pnpm 10 and an OpenAI API key with Realtime access.
+
+```bash
+git clone https://github.com/jerelvelarde/call-your-ui
+cd call-your-ui
+cp .env.example .env.local   # then add your OPENAI_API_KEY
+pnpm install
+pnpm dev
+```
+
+Open http://localhost:3300, press **Call** and allow the microphone.
 
 ## How it works
 
 ```
- you speak ──▶ GPT Realtime (browser, WebRTC)
-                 │ says "Putting that up now"
-                 │ calls show_ui({ brief, target })
-                 ▼
-            useUiAgent.draw()  ──▶  /api/copilotkit  ──▶  UI agent (A2UI Express, streamed)
-                 │                                          │
-                 │            ◀── generative-ui-surface activity, one component at a time
-                 ▼
-            the view paints on the stage
-                 │
-                 └──▶ function_call_output { status: "shown" } ──▶ the voice says one line
-
- a click on a view ──▶ CopilotKit reruns the agent ──▶ the same view is redrawn in place
-                   └──▶ "[UI] …" goes to the voice, which acknowledges it
+you ── voice (WebRTC) ──▶ GPT Realtime
+                            │  move_stop({ stopId: "s4", toDayId: "d2", time: "09:00" })
+                            ▼
+                     useCopilotCall ──▶ CopilotKit's tool registry ──▶ your handler ──▶ the plan changes
+                            ▲                                                            │
+                            └──────── the result, plus the updated plan as context ◀─────┘
 ```
 
-- The voice model never writes UI. It writes a brief, and the UI agent writes the A2UI. Voice models are tuned for talking; this keeps them fast and keeps the UI good.
-- The tool result waits for the view to finish, so the voice's follow-up line lands after the view does.
-- `target: "current"` redraws the view on screen ("make it a chart instead").
+1. The app registers its edits with `useFrontendTools` and shares the plan with `useAgentContext` ([components/use-trip-tools.ts](components/use-trip-tools.ts)). Nothing there knows about voice.
+2. `POST /api/realtime/session` mints a short-lived client secret. Your OpenAI key never reaches the browser.
+3. `useCopilotCall` opens the call and sends a `session.update` with the tools (converted from their schemas) and the instructions, with CopilotKit's context appended. It sends a new one whenever the context changes, so the voice always sees what's on screen.
+4. When the model calls a tool, the hook validates the arguments against the tool's schema and runs its handler with a deadline and an abort signal. It returns the result. Several calls in one turn run together and get one response.
+5. `show_panel` sends anything the plan can't show by itself to a CopilotKit agent that writes [A2UI](https://a2ui.org), and the panel renders under the plan.
 
-## Run it
+## Use it in your own CopilotKit app
 
-Requires Node 22+ and pnpm 10.
+[`lib/copilot-call/`](lib/copilot-call) has no app code in it. Copy it and the session route ([app/api/realtime/session/route.ts](app/api/realtime/session/route.ts)) into a CopilotKit 2 app, and your frontend tools work over a call:
 
-```bash
-pnpm install
-cp .env.example .env.local      # then set OPENAI_API_KEY
-pnpm dev                        # http://localhost:3200
+```tsx
+import { useCopilotCall } from "@/lib/copilot-call";
+
+function CallButton() {
+  const call = useCopilotCall({ instructions: "You are the voice of this app. Keep replies short." });
+  return call.status === "idle" ? <button onClick={call.start}>Call</button> : <button onClick={call.stop}>Hang up</button>;
+}
 ```
 
-Tap the orb and allow the microphone. Or type in the box: with the voice on, typing talks to the voice; with it off, typing goes straight to the UI writer.
+| Returns | |
+|---|---|
+| `status` | `idle`, `connecting`, `listening`, `thinking`, `running-tool`, `speaking` or `error` |
+| `transcript` | What the caller and the voice said, with partial and final entries |
+| `error`, `muted`, `startedAt` | Call state for your UI |
+| `start()`, `stop()`, `setMuted()`, `sendText()` | Control the call; `sendText` adds a typed message mid-call |
+| `getLevels()` | Mic and voice loudness (0–1), for a waveform |
 
-The first request after `pnpm dev` compiles the runtime and the A2UI compiler, which can take around 30 seconds. After that, views start painting in about 1–2 seconds.
+Options: `instructions`, `agentId` (which agent-scoped tools and context to use), `sessionUrl`, `toolDeadlineMs` (60 s by default) and `maxCallMs` (10 minutes by default).
 
-### Offline mode (no key, no network)
+## Limits
 
-```bash
-COMPOSER_MODEL=offline pnpm dev
-```
+- It's turn-based. Edits land a moment after you pause, not mid-sentence: GPT Realtime decides when you've finished talking.
+- Places and prices come from the model's own knowledge. Costs are estimates, and the UI says so.
+- OpenAI bills every minute a call is open. Calls hang up on their own after 10 minutes.
+- `/api/realtime/session` checks that the request comes from the app's own page and rate-limits each IP. Those are speed bumps, not security. Before you deploy this anywhere public, put real authentication in front of that route.
 
-The UI writer draws canned views for the four suggestions on the empty stage (headphones, a Lisbon trip, a sales dashboard, a signup form). It streams at a model-like pace, and a click on each updates the view, for example "Order confirmed". Anything else draws a short note. It is opt-in only: a missing key never falls back to it. The voice still needs a key.
+## Tests
 
-### Settings (`.env.local`)
+- `pnpm test` runs the unit tests: the trip model, the tool bridge, the call loop and the session route. No network.
+- `pnpm e2e:voice && pnpm e2e` makes a real call against `pnpm dev` with a synthesized caller. It plays each line of the demo script into a fake microphone, checks the plan after each one, and saves a screen recording to `e2e/takes/`. It needs `OPENAI_API_KEY`.
 
-| Variable | Default | |
-| --- | --- | --- |
-| `OPENAI_API_KEY` | (required) | One key runs both the voice and the UI writer. |
-| `REALTIME_MODEL` | `gpt-realtime-2.1-mini` | `gpt-realtime-2.1` is the step up if briefs come out thin. |
-| `REALTIME_VOICE` | `marin` | `cedar` is OpenAI's other recommended voice. |
-| `COMPOSER_MODEL` | `gpt-5.6-sol` | The UI writer. `gpt-6-astra` is the step up, `gpt-5.6-luna` the cheap one, `offline` the canned writer. |
-| `COMPOSER_REASONING` | `low` | Reasoning effort for the UI writer. |
-| `COPILOTKIT_TELEMETRY_DISABLED` | | `true` turns off the runtime's usage telemetry. |
+## Built with
 
-## Checks
+CopilotKit 2.0 (release candidate), A2UI, OpenAI GPT Realtime, Next.js and Motion.
 
-```bash
-pnpm typecheck
-pnpm test        # smoke-compose, smoke-sequencer, smoke-offline, smoke-abort (all offline)
-pnpm build
-```
+## License
 
-## Where things are
-
-| Path | What |
-| --- | --- |
-| `app/api/realtime/token/route.ts` | Mints a 10-minute Realtime client secret with the session config. The real key never reaches the browser. |
-| `lib/realtime/` | The WebRTC client, the response sequencer (one response at a time), the draw deadline and the `useRealtime` hook. |
-| `app/api/copilotkit/[[...slug]]/route.ts` | The CopilotKit 2.0 runtime with the UI agent. |
-| `server/agent/` | The UI agent: brief → A2UI Express → streamed surface operations, plus the offline writer. |
-| `components/use-ui-agent.ts` | Runs the UI agent from the page, one draw at a time, and spots clicks. |
-| `components/` | The rail (orb, captions, briefs), the stage and the provider. |
-| `lib/cpk.ts`, `lib/cpk-server.ts` | Every CopilotKit import. If the 2.0 RC breaks, only these change for 1.88 (`/v2` paths). |
-| `lib/config.ts` | Model defaults, the voice's instructions and the `show_ui` tool. |
-| `BLUEPRINT.md` | The build contract the app was built from. |
+MIT
