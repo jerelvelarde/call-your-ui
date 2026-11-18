@@ -62,6 +62,13 @@ describe("applyAction", () => {
     expect(trip.lastChanged).toEqual(["d1", "d2", "d3"]);
   });
 
+  it("create_trip's message names the day ids, so the voice can add stops to them", () => {
+    const result = applyAction(EMPTY_TRIP, { ...LISBON, days: (LISBON as { days: object[] }).days.map((d) => ({ ...d, stops: [] })) } as TripAction);
+    expect(result.ok && result.message).toBe("Planned 3 days: d1 (Fri), d2 (Sat), d3 (Sun). No stops yet.");
+    const full = applyAction(EMPTY_TRIP, LISBON);
+    expect(full.ok && full.message).toBe("Planned 3 days: d1 (Fri), d2 (Sat), d3 (Sun), with 5 stops.");
+  });
+
   it("move_stop moves a stop across days and re-sorts by time", () => {
     const result = applyAction(created(), { type: "move_stop", stopId: "s4", toDayId: "d2", time: "09:00" });
     expect(result.ok).toBe(true);

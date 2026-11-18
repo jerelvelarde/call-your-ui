@@ -49,10 +49,9 @@ const CHECKS = [
     return null;
   },
   (trip, _dom, before) => {
-    // Either castle (São Jorge, or a Sintra one) counts: the line only says "the castle".
-    const movable = allStops(before).filter((s) => CASTLE.test(s.title) && !beforeNoonSat(s));
-    const moved = movable.some((c) => beforeNoonSat(allStops(trip).find((s) => s.id === c.id)));
-    if (!moved) return "no castle moved to Saturday morning";
+    // The end state is what was asked for: a castle (São Jorge, or a Sintra one: the line only says
+    // "the castle") on Saturday morning. The first plan may already have it on Saturday.
+    if (!allStops(trip).some((s) => CASTLE.test(s.title) && beforeNoonSat(s))) return "no castle is on Saturday morning";
     const old = fadoDinner(before);
     if (!old) return "there was no fado dinner to swap";
     const cheaper = (s) => old.estimate === undefined || (s.estimate ?? Infinity) < old.estimate;

@@ -102,6 +102,30 @@ describe("createCallController", () => {
     expect(outputs.map((o) => JSON.parse(o.item.output))).toEqual([{ result: "moved" }, { result: "updated" }]);
   });
 
+  it("runs a call as soon as its item is done, and answers it when the response is done", async () => {
+    const ran: string[] = [];
+    const h = harness([tool("add_stop", async (args) => (ran.push((args as { id: string }).id), "added"))]);
+    h.controller.open();
+    h.controller.handle({ type: "response.output_item.done", item: fnCall("a", "add_stop", { id: "s4" }) });
+    await flush();
+    expect(ran).toEqual(["s4"]);
+    expect(h.turns).toEqual([]);
+    h.controller.handle({ type: "response.output_item.done", item: fnCall("b", "add_stop", { id: "s5" }) });
+    h.controller.handle(done(fnCall("a", "add_stop", { id: "s4" }), fnCall("b", "add_stop", { id: "s5" })));
+    await flush();
+    expect(ran).toEqual(["s4", "s5"]);
+    expect(h.turns).toHaveLength(1);
+    expect(h.turns[0].map(label)).toEqual(["output:a", "output:b", "response.create"]);
+  });
+
+  it("does not run an incomplete item early", async () => {
+    let ran = 0;
+    const h = harness([tool("add_stop", async () => (ran++, "ok"))]);
+    h.controller.handle({ type: "response.output_item.done", item: fnCall("a", "add_stop", { id: "s4" }, "incomplete") });
+    await flush();
+    expect(ran).toBe(0);
+  });
+
   it("skips incomplete function calls", async () => {
     let ran = 0;
     const h = harness([tool("move_stop", async () => (ran++, "ok"))]);

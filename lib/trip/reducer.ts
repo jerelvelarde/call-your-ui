@@ -102,7 +102,9 @@ export function applyAction(trip: Trip, action: TripAction): ActionResult {
         lastChanged: dayIds,
         revision: trip.revision + 1,
       });
-      return { ok: true, trip: next, message: `Planned ${days.length} days with ${count} stops.` };
+      const named = days.map((d, i) => `${d.id} (${d.weekday ?? `Day ${i + 1}`})`).join(", ");
+      const stops = count === 0 ? ". No stops yet." : `, with ${count} stops.`;
+      return { ok: true, trip: next, message: `Planned ${days.length} days: ${named}${stops}` };
     }
 
     case "add_stop": {

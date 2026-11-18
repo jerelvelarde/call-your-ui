@@ -70,7 +70,9 @@ export function createCallController(opts: CallControllerOptions): CallControlle
   let status: CallStatus | null = null;
   let audioPlaying = false;
   let toolsRunning = 0;
-  const handledCalls = new Set<string>();
+  /** Each call runs once, as soon as its item is complete; `response.done` collects the results. */
+  const started = new Map<string, ReturnType<typeof runToolCall>>();
+  const answered = new Set<string>();
   const stop = new AbortController();
   const speechAt = new Map<string, number>();
   const entries = new Map<string, TranscriptEntry>();
@@ -111,12 +113,28 @@ export function createCallController(opts: CallControllerOptions): CallControlle
         (t) => t.name === name && t.available !== false && !!t.handler && (!t.agentId || t.agentId === opts.agentId),
       );
 
+  /** A finished call the model wants run: complete arguments (not cut off by the caller talking over it). */
+  const runnable = (item: unknown): item is FunctionCallOutput =>
+    isFunctionCall(item as FunctionCallOutput) &&
+    !!(item as FunctionCallOutput).call_id &&
+    (!(item as FunctionCallOutput).status || (item as FunctionCallOutput).status === "completed");
+
+  const startCall = (call: FunctionCallOutput) => {
+    let run = started.get(call.call_id);
+    if (!run) {
+      toolsRunning++;
+      setStatus("running-tool");
+      run = runToolCall(findTool(call.name), call, { signal: stop.signal, deadlineMs: opts.toolDeadlineMs }).finally(() => {
+        toolsRunning--;
+      });
+      started.set(call.call_id, run);
+    }
+    return run;
+  };
+
   const answer = async (calls: FunctionCallOutput[]) => {
     toolsRunning++;
-    setStatus("running-tool");
-    const results = await Promise.all(
-      calls.map((call) => runToolCall(findTool(call.name), call, { signal: stop.signal, deadlineMs: opts.toolDeadlineMs })),
-    );
+    const results = await Promise.all(calls.map(startCall));
     // The tools may have changed what the model should see (the plan): let the app commit it, then
     // update the session before asking the model to speak.
     await (opts.settle ?? defaultSettle)();
@@ -150,18 +168,18 @@ export function createCallController(opts: CallControllerOptions): CallControlle
           }
           if (!audioPlaying && toolsRunning === 0) setStatus("listening");
           const calls = (event.response?.output ?? []).filter(
-            (item): item is FunctionCallOutput =>
-              isFunctionCall(item) &&
-              !!item.call_id &&
-              // A call cut off by the user talking over the model has partial arguments: never run it.
-              (!item.status || item.status === "completed") &&
-              !handledCalls.has(item.call_id),
+            (item): item is FunctionCallOutput => runnable(item) && !answered.has(item.call_id),
           );
           if (calls.length === 0) break;
-          calls.forEach((call) => handledCalls.add(call.call_id));
+          calls.forEach((call) => answered.add(call.call_id));
           void answer(calls);
           break;
         }
+        case "response.output_item.done":
+          // Run each call as soon as its arguments are complete, so edits land while the model is
+          // still writing the next call or talking; the results go back when the response is done.
+          if (runnable(event.item)) void startCall(event.item);
+          break;
         case "output_audio_buffer.started":
           audioPlaying = true;
           setStatus("speaking");
