@@ -9,7 +9,7 @@ export {
   useCopilotKit,
   useRenderActivityMessage,
 } from "@copilotkit/react-core";
-export type { CopilotKitProviderProps } from "@copilotkit/react-core";
+export type { CopilotKitProviderProps, FrontendTool, ScopedContext } from "@copilotkit/react-core";
 export {
   GenerativeUISurface,
   createGenerativeUI,
