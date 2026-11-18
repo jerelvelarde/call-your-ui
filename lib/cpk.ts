@@ -6,7 +6,9 @@
 export {
   CopilotKitProvider,
   useAgent,
+  useAgentContext,
   useCopilotKit,
+  useFrontendTools,
   useRenderActivityMessage,
 } from "@copilotkit/react-core";
 export type { CopilotKitProviderProps, FrontendTool, ScopedContext } from "@copilotkit/react-core";
