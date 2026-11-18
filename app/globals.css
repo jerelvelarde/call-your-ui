@@ -318,7 +318,7 @@ button:focus-visible {
 }
 
 .stop[data-compact] {
-  padding: 6px 9px;
+  padding: 4px 9px;
   border-radius: 8px;
 }
 
@@ -337,6 +337,7 @@ button:focus-visible {
 
 .stop[data-compact] .stop-time {
   font-size: 11.5px;
+  line-height: 1.3;
 }
 
 .stop[data-kind="food"] {

@@ -1,12 +1,13 @@
 "use client";
 import type { CSSProperties } from "react";
+import { layoutLanes } from "@/lib/trip/lanes";
 import { dayLabel } from "@/lib/trip/reducer";
 import type { Stop, Trip } from "@/lib/trip/types";
 import { StopCard } from "./stop-card";
 
-const HOUR_PX = 40;
+const HOUR_PX = 44;
 /** A stop is drawn as this long: the plan has start times, not durations. */
-const BLOCK_MIN = 75;
+const BLOCK_MIN = 60;
 
 const minutes = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
 
@@ -61,24 +62,22 @@ export function Calendar({ trip, enterDelays }: { trip: Trip; enterDelays: Reado
           ))}
         </div>
         {trip.days.map((day) => {
-          let lastEnd = -1;
+          const timed = day.stops.filter((s): s is Stop & { time: string } => !!s.time);
+          const lanes = layoutLanes(timed, BLOCK_MIN);
           return (
             <div key={day.id} className="cal-col" style={{ backgroundSize: `100% ${HOUR_PX}px` }}>
-              {day.stops
-                .filter((s) => s.time)
-                .map((stop) => {
-                  const start = minutes(stop.time!);
-                  const overlaps = start < lastEnd;
-                  lastEnd = Math.max(lastEnd, start + BLOCK_MIN);
-                  return card(stop, {
-                    position: "absolute",
-                    top: ((start - startHour * 60) / 60) * HOUR_PX + 1,
-                    height: (BLOCK_MIN / 60) * HOUR_PX - 3,
-                    left: overlaps ? 22 : 4,
-                    right: 4,
-                    zIndex: overlaps ? 2 : 1,
-                  });
-                })}
+              {timed.map((stop) => {
+                const start = minutes(stop.time);
+                const { lane, lanes: count } = lanes.get(stop.id) ?? { lane: 0, lanes: 1 };
+                const width = 100 / count;
+                return card(stop, {
+                  position: "absolute",
+                  top: ((start - startHour * 60) / 60) * HOUR_PX + 1,
+                  height: (BLOCK_MIN / 60) * HOUR_PX - 3,
+                  left: `calc(${lane * width}% + 4px)`,
+                  width: `calc(${width}% - 8px)`,
+                });
+              })}
             </div>
           );
         })}
