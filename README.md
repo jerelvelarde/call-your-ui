@@ -35,7 +35,7 @@ you ── voice (WebRTC) ──▶ GPT Realtime
 2. `POST /api/realtime/session` mints a short-lived client secret. Your OpenAI key never reaches the browser.
 3. `useCopilotCall` opens the call and sends a `session.update` with the tools (converted from their schemas) and the instructions, with CopilotKit's context appended. It sends a new one whenever the context changes, so the voice always sees what's on screen.
 4. When the model calls a tool, the hook validates the arguments against the tool's schema and runs its handler with a deadline and an abort signal. It returns the result. Several calls in one turn run together and get one response.
-5. `show_panel` sends anything the plan can't show by itself to a CopilotKit agent that writes [A2UI](https://a2ui.org), and the panel renders under the plan.
+5. `show_panel` sends anything the plan can't show by itself to a CopilotKit agent that writes [A2UI](https://github.com/google/A2UI), and the panel renders under the plan.
 
 ## Use it in your own CopilotKit app
 
