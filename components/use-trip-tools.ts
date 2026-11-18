@@ -23,7 +23,13 @@ export function todayISO(): string {
 export function runTripTool(store: TripStore, name: string, args: Record<string, unknown>): string {
   const def = TRIP_TOOLS.find((t) => t.name === name);
   if (!def) return `Error: unknown tool "${name}".`;
-  const result = store.dispatch(def.toAction(args));
+  let action;
+  try {
+    action = def.toAction(args, { today: todayISO() });
+  } catch (error) {
+    return `Error: ${error instanceof Error ? error.message : String(error)}`;
+  }
+  const result = store.dispatch(action);
   return result.ok ? result.message : `Error: ${result.error}`;
 }
 

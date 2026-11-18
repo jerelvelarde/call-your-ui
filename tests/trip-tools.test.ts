@@ -31,7 +31,19 @@ describe("TRIP_TOOLS", () => {
   it("toAction turns validated arguments into the matching action", () => {
     const move = TRIP_TOOLS.find((t) => t.name === "move_stop")!;
     const args = move.parameters.parse({ stopId: "s4", toDayId: "d2", time: "09:00" });
-    expect(move.toAction(args)).toEqual({ type: "move_stop", stopId: "s4", toDayId: "d2", time: "09:00" });
+    expect(move.toAction(args, { today: "2026-11-18" })).toEqual({ type: "move_stop", stopId: "s4", toDayId: "d2", time: "09:00" });
+  });
+
+  it("set_trip_details resolves a spoken start day to the next matching date", () => {
+    const details = TRIP_TOOLS.find((t) => t.name === "set_trip_details")!;
+    const args = details.parameters.parse({ startWeekday: "Fri", startDayOfMonth: 11 });
+    expect(details.toAction(args, { today: "2026-11-18" })).toEqual({ type: "set_trip_details", startDate: "2026-12-11" });
+  });
+
+  it("set_trip_details reports a spoken start day that never comes", () => {
+    const details = TRIP_TOOLS.find((t) => t.name === "set_trip_details")!;
+    const args = details.parameters.parse({ startDayOfMonth: 31, startMonth: 2 });
+    expect(() => details.toAction(args, { today: "2026-11-18" })).toThrow("No date in the next year matches");
   });
 });
 

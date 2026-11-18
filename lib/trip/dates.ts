@@ -40,3 +40,21 @@ export function shiftWeekday(weekday: Weekday, n: number): Weekday {
   const i = WEEKDAYS.indexOf(weekday);
   return WEEKDAYS[(((i + n) % 7) + 7) % 7];
 }
+
+/**
+ * The first date on or after `today` that fits what the caller said ("Friday the eleventh", "the 25th",
+ * "January 3rd"), searching a year ahead. Null when nothing in that year fits (e.g. 31 February).
+ */
+export function nextMatchingDate(
+  today: string,
+  want: { weekday?: Weekday; dayOfMonth?: number; month?: number },
+): string | null {
+  for (let i = 0; i <= 366; i++) {
+    const date = addDays(today, i);
+    if (want.weekday && weekdayOf(date) !== want.weekday) continue;
+    if (want.dayOfMonth !== undefined && Number(date.slice(8, 10)) !== want.dayOfMonth) continue;
+    if (want.month !== undefined && Number(date.slice(5, 7)) !== want.month) continue;
+    return date;
+  }
+  return null;
+}

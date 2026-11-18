@@ -3,13 +3,15 @@
  * (components/use-trip-tools.ts), so a chat agent or a voice call can use them the same way.
  */
 import { z } from "zod";
-import type { TripAction } from "./types";
+import { nextMatchingDate } from "./dates";
+import type { TripAction, Weekday } from "./types";
 
 export interface TripToolDef {
   name: TripAction["type"];
   description: string;
   parameters: z.ZodType<Record<string, unknown>>;
-  toAction(args: Record<string, unknown>): TripAction;
+  /** Throws, with a message the voice can act on, when the arguments can't become an action. */
+  toAction(args: Record<string, unknown>, ctx: { today: string }): TripAction;
 }
 
 const IDS = 'Use the ids shown in the "Trip plan" context (days look like d2, stops like s7).';
@@ -91,13 +93,29 @@ export const TRIP_TOOLS: readonly TripToolDef[] = [
   {
     name: "set_trip_details",
     description:
-      "Set the trip's title, start date, budget or currency. Setting a start date labels the days with real dates; it fails if the date's weekday contradicts the weekdays the user already named.",
+      'Set the trip\'s title, start date, budget or currency. For a start day the caller says ("Friday the eleventh", "the 25th"), pass startWeekday, startDayOfMonth and startMonth exactly as said and the app finds the next matching date; pass startDate only for a full date. Setting a start date labels the days with real dates; it fails if the date\'s weekday contradicts the weekdays the user already named.',
     parameters: z.object({
       title: z.string().optional(),
-      startDate: z.string().optional().describe('"YYYY-MM-DD". Resolve "the eleventh" from Today\'s date.'),
+      startDate: z.string().optional().describe('A full date, "YYYY-MM-DD". Prefer the spoken-day fields.'),
+      startWeekday: weekday.optional().describe("The weekday the caller said the trip starts on."),
+      startDayOfMonth: z.number().optional().describe('The day of the month the caller said, e.g. 11 for "the eleventh".'),
+      startMonth: z.number().optional().describe("The month number, only if the caller said a month."),
       budget: z.number().optional(),
       currency: z.string().optional(),
     }),
-    toAction: as("set_trip_details"),
+    toAction: (args, { today }) => {
+      const { startWeekday, startDayOfMonth, startMonth, ...rest } = args as {
+        startWeekday?: Weekday;
+        startDayOfMonth?: number;
+        startMonth?: number;
+      } & Record<string, unknown>;
+      const spoken = startWeekday !== undefined || startDayOfMonth !== undefined || startMonth !== undefined;
+      if (rest.startDate === undefined && spoken) {
+        const date = nextMatchingDate(today, { weekday: startWeekday, dayOfMonth: startDayOfMonth, month: startMonth });
+        if (!date) throw new Error("No date in the next year matches that day. Ask the caller for the date.");
+        rest.startDate = date;
+      }
+      return { type: "set_trip_details", ...rest } as TripAction;
+    },
   },
 ];

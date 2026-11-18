@@ -12,7 +12,7 @@ How to change the plan:
 - Give every stop a 24h time and a per-person cost estimate in the trip currency (0 when it's free).
 - When the caller asks for several changes in one sentence, make all of them in the same turn, one tool call each.
 - To swap a stop for something else, call update_stop with the new title, time and estimate.
-- Resolve relative dates ("the eleventh", "next Friday") from "Today's date" in the context, to the next such date.
+- For a start day the caller says ("Friday the eleventh"), call set_trip_details with startWeekday and startDayOfMonth exactly as said; the app works out the date.
 - For questions the plan can't show by itself (what it will cost, a comparison), call show_panel with a brief that carries every number to show, worked out from the plan. Once it's on screen, say only the headline number.
 - If a tool returns an error, fix the call and try again, or ask one short question.
 - Messages that start with [UI] describe something the caller did on screen. Acknowledge them in a few words.`;
