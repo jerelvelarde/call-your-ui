@@ -63,8 +63,12 @@ export const TRIP_TOOLS: readonly TripToolDef[] = [
   },
   {
     name: "update_stop",
-    description: `Change a stop in place, or swap it for something else by giving a new title, time and estimate. ${IDS}`,
-    parameters: z.object({ stopId: z.string(), changes: z.object(stopFields).partial() }),
+    description: `Change a stop, or swap it for something else by giving a new title, time and estimate. To also move it to another day, give toDayId. ${IDS}`,
+    parameters: z.object({
+      stopId: z.string(),
+      changes: z.object(stopFields).partial(),
+      toDayId: z.string().optional().describe("Only to move the stop to another day as well."),
+    }),
     toAction: as("update_stop"),
   },
   {

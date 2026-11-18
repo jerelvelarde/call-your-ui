@@ -62,7 +62,7 @@ export type TripAction =
       days: { weekday?: Weekday; area?: string; stops: StopInput[] }[];
     }
   | { type: "add_stop"; dayId: string; stop: StopInput; position?: number }
-  | { type: "update_stop"; stopId: string; changes: Partial<StopInput> }
+  | { type: "update_stop"; stopId: string; changes: Partial<StopInput>; toDayId?: string }
   | { type: "move_stop"; stopId: string; toDayId: string; position?: number; time?: string }
   | { type: "remove_stop"; stopId: string }
   | { type: "set_view"; view: "days" | "calendar" }

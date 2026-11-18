@@ -93,7 +93,21 @@ describe("applyAction", () => {
     if (!result.ok) return;
     const stop = result.trip.days[0].stops.find((s) => s.id === "s5");
     expect(stop).toMatchObject({ id: "s5", title: "Dinner at a tasca in Alfama", estimate: 30, time: "21:00" });
-    expect(result.message).toBe('Replaced "Fado dinner at a casa de fado" with "Dinner at a tasca in Alfama".');
+    expect(result.message).toBe('Replaced "Fado dinner at a casa de fado" with "Dinner at a tasca in Alfama" (Fri 21:00).');
+  });
+
+  it("update_stop can also move the stop to another day", () => {
+    const result = applyAction(created(), { type: "update_stop", stopId: "s4", toDayId: "d2", changes: { time: "09:00" } });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.trip.days[0].stops.map((s) => s.id)).toEqual(["s5"]);
+    expect(result.trip.days[1].stops.map((s) => s.id)).toEqual(["s4", "s6", "s7"]);
+    expect(result.message).toBe('Moved "Castelo de São Jorge" to Sat 09:00.');
+  });
+
+  it("update_stop says where the stop is, so a move that didn't happen is visible", () => {
+    const result = applyAction(created(), { type: "update_stop", stopId: "s4", changes: { time: "09:00" } });
+    expect(result.ok && result.message).toBe('Updated "Castelo de São Jorge" (Fri 09:00).');
   });
 
   it("rejects an unknown stop id without changing the trip", () => {

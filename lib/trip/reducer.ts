@@ -125,13 +125,23 @@ export function applyAction(trip: Trip, action: TripAction): ActionResult {
       if (!found) return { ok: false, error: noStop(action.stopId) };
       const problem = stopProblem(action.changes, false);
       if (problem) return { ok: false, error: problem };
+      const toIndex = action.toDayId === undefined ? found.dayIndex : trip.days.findIndex((d) => d.id === action.toDayId);
+      if (toIndex < 0) return { ok: false, error: noDay(action.toDayId!) };
       const old = found.stop;
       const updated = clean({ ...old, ...clean(action.changes), id: old.id });
-      const days = trip.days.map((d, i) =>
-        i === found.dayIndex ? { ...d, stops: sortStops(d.stops.map((s) => (s.id === old.id ? updated : s))) } : d,
-      );
+      const days = trip.days.map((d, i) => {
+        let stops = i === found.dayIndex ? d.stops.filter((s) => s.id !== old.id) : d.stops;
+        if (i === toIndex) stops = sortStops([...stops, updated]);
+        return stops === d.stops ? d : { ...d, stops };
+      });
+      // Always say where the stop ended up, so a move that didn't happen can't pass for one.
+      const where = `${dayLabel(trip, toIndex)}${updated.time ? ` ${updated.time}` : ""}`;
       const message =
-        updated.title !== old.title ? `Replaced "${old.title}" with "${updated.title}".` : `Updated "${old.title}".`;
+        updated.title !== old.title
+          ? `Replaced "${old.title}" with "${updated.title}" (${where}).`
+          : toIndex !== found.dayIndex
+            ? `Moved "${old.title}" to ${where}.`
+            : `Updated "${old.title}" (${where}).`;
       return done(trip, { days }, [old.id], message);
     }
 
