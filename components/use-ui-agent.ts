@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Message } from "@ag-ui/client";
 import { REDRAW_MARKER, SURFACE_ACTIVITY, UI_AGENT_ID } from "@/lib/config";
 import { useAgent, useCopilotKit } from "@/lib/cpk";
-import { abortMessage } from "@/lib/copilot-call/deadline";
+import { abortMessage } from "@/lib/deadline";
 import type { DrawRequest, DrawResult, Handoff } from "@/lib/types";
 
 export interface UseUiAgent {

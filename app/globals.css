@@ -153,10 +153,6 @@ button:focus-visible {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
 }
 
-.call-btn svg {
-  color: #4ade80;
-}
-
 .main {
   flex: 1;
   width: 100%;

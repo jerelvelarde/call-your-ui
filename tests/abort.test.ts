@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { connectRealtime, RealtimeError } from "@/lib/copilot-call/client";
-import { abortMessage, drawWithDeadline } from "@/lib/copilot-call/deadline";
+import { abortMessage, drawWithDeadline } from "@/lib/deadline";
 import type { DrawResult } from "@/lib/types";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

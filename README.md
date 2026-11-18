@@ -39,7 +39,7 @@ you ── voice (WebRTC) ──▶ GPT Realtime
 
 ## Use it in your own CopilotKit app
 
-[`lib/copilot-call/`](lib/copilot-call) has no app code in it. Copy it and the session route ([app/api/realtime/session/route.ts](app/api/realtime/session/route.ts)) into a CopilotKit 2 app, and your frontend tools work over a call:
+[`lib/copilot-call/`](lib/copilot-call) has no app code in it: its only import from the app is [`lib/cpk.ts`](lib/cpk.ts), which re-exports CopilotKit. Copy those two and the session route ([app/api/realtime/session/route.ts](app/api/realtime/session/route.ts)) into a CopilotKit 2 app, and your frontend tools work over a call:
 
 ```tsx
 import { useCopilotCall } from "@/lib/copilot-call";
@@ -64,8 +64,8 @@ Options: `instructions`, `agentId` (which agent-scoped tools and context to use)
 
 - It's turn-based. Edits land a moment after you pause, not mid-sentence: GPT Realtime decides when you've finished talking.
 - Places and prices come from the model's own knowledge. Costs are estimates, and the UI says so.
-- OpenAI bills every minute a call is open. Calls hang up on their own after 10 minutes.
-- `/api/realtime/session` checks that the request comes from the app's own page and rate-limits each IP. Those are speed bumps, not security. Before you deploy this anywhere public, put real authentication in front of that route.
+- OpenAI bills every minute a call is open. Calls hang up on their own after 10 minutes (the browser enforces this).
+- `/api/realtime/session` checks that the request comes from the app's own page and rate-limits each IP. Those are speed bumps, not security, and `/api/copilotkit` (the panel writer) has neither. Both spend your OpenAI key, so before you deploy this anywhere public, put real authentication in front of the whole app.
 
 ## Tests
 
