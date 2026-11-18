@@ -28,40 +28,44 @@ const log = (m) => console.log(`${((Date.now() - t0) / 1000).toFixed(1).padStart
 const allStops = (trip) => trip.days.flatMap((day) => day.stops.map((stop) => ({ ...stop, day })));
 const isFriday = (iso) => new Date(`${iso}T00:00:00Z`).getUTCDay() === 5;
 const today = new Date().toLocaleDateString("en-CA");
-const memo = {};
 
-/** Each returns null when the plan is right, or why it isn't. */
+const CASTLE = /castle|castelo|s[ãa]o jorge/i;
+const DAY_TRIP = /sintra|cascais|[óo]bidos|[ée]vora|f[áa]tima|nazar[ée]|set[úu]bal|arr[áa]bida|mafra|ericeira|coimbra|tomar|day trip/i;
+/** The fado dinner, not a fado museum: a fado stop that is food or in the evening. */
+const fadoDinner = (trip) => allStops(trip).find((s) => /fado/i.test(s.title) && (s.kind === "food" || (s.time ?? "") >= "17:00"));
+const beforeNoonSat = (s) => s && s.day.weekday === "Sat" && !!s.time && s.time < "12:00";
+
+/** Each returns null when the plan is right, or why it isn't. `before` is the plan when the line started. */
 const CHECKS = [
   (trip) => {
     if (trip.days.length !== 3) return `expected 3 days, got ${trip.days.length}`;
     const weekdays = trip.days.map((d) => d.weekday).join(",");
     if (weekdays !== "Fri,Sat,Sun") return `expected Fri,Sat,Sun, got ${weekdays}`;
     if (trip.days.some((d) => d.stops.length === 0)) return "a day has no stops";
-    const castle = allStops(trip).find((s) => /castle|castelo/i.test(s.title));
-    const fado = allStops(trip).find((s) => /fado/i.test(s.title));
-    if (!castle || !fado) return `the model's first plan had no ${!castle ? "castle" : "fado dinner"}`;
-    memo.castleId = castle.id;
-    memo.fado = { id: fado.id, dayId: fado.day.id, estimate: fado.estimate };
+    const castle = allStops(trip).find((s) => CASTLE.test(s.title));
+    if (!castle || !fadoDinner(trip)) return `the model's first plan had no ${!castle ? "castle" : "fado dinner"}`;
+    const dayTrip = trip.days.some((d) => DAY_TRIP.test([d.area, ...d.stops.flatMap((s) => [s.title, s.area])].join(" ")));
+    if (!dayTrip) return "no day is a day trip out of the city";
     return null;
   },
-  (trip) => {
-    const castle = allStops(trip).find((s) => s.id === memo.castleId);
-    if (!castle) return "the castle stop is gone";
-    if (castle.day.weekday !== "Sat") return `the castle is on ${castle.day.weekday}, not Sat`;
-    if (!(castle.time && castle.time < "12:00")) return `the castle is at ${castle.time}, not in the morning`;
-    const old = allStops(trip).find((s) => s.id === memo.fado.id);
-    if (old && /fado/i.test(old.title)) return "the fado dinner is still there";
-    const day = trip.days.find((d) => d.id === memo.fado.dayId);
-    const dinner = day?.stops.find(
-      (s) =>
-        s.time >= "18:00" &&
-        !/fado/i.test(s.title) &&
-        (memo.fado.estimate === undefined || (s.estimate ?? Infinity) < memo.fado.estimate),
+  (trip, _dom, before) => {
+    // Either castle (São Jorge, or a Sintra one) counts: the line only says "the castle".
+    const movable = allStops(before).filter((s) => CASTLE.test(s.title) && !beforeNoonSat(s));
+    const moved = movable.some((c) => beforeNoonSat(allStops(trip).find((s) => s.id === c.id)));
+    if (!moved) return "no castle moved to Saturday morning";
+    const old = fadoDinner(before);
+    if (!old) return "there was no fado dinner to swap";
+    const cheaper = (s) => old.estimate === undefined || (s.estimate ?? Infinity) < old.estimate;
+    const now = allStops(trip).find((s) => s.id === old.id);
+    if (now) return /fado/i.test(now.title) ? "the fado dinner is still there" : cheaper(now) ? null : "the swapped dinner isn't cheaper";
+    const beforeIds = new Set(allStops(before).map((s) => s.id));
+    const replacement = allStops(trip).find(
+      (s) => !beforeIds.has(s.id) && s.day.id === old.day.id && (s.time ?? "") >= "17:00" && !/fado/i.test(s.title),
     );
-    if (!dinner) return "no cheaper evening stop replaced the fado dinner";
-    return null;
+    if (!replacement) return "the fado dinner was removed but nothing replaced it";
+    return cheaper(replacement) ? null : "the new dinner isn't cheaper";
   },
-  (_trip, dom) => (dom.readyPanels > 0 ? null : "no panel is ready yet"),
+  (_trip, dom) => (dom.readyPanels > 0 && dom.stoppedPanels === 0 ? null : "no panel is ready yet"),
   (trip) => {
     if (trip.view !== "calendar") return `the view is ${trip.view}`;
     const start = trip.startDate;
@@ -70,7 +74,7 @@ const CHECKS = [
     if (start < today) return `the start date ${start} is in the past`;
     return null;
   },
-  (trip) => (trip.revision === memo.revisionBeforeThanks ? null : "the plan changed after 'Perfect, thanks.'"),
+  (trip, _dom, before) => (trip.revision === before.revision ? null : "the plan changed after 'Perfect, thanks.'"),
 ];
 const TIMEOUT_MS = [45_000, 45_000, 75_000, 45_000, 6_000];
 
@@ -137,7 +141,10 @@ const state = () =>
   page.evaluate(() => ({
     status: window.__callYourUi?.getStatus(),
     trip: window.__callYourUi?.getTrip(),
-    dom: { readyPanels: document.querySelectorAll('[data-panel-status="ready"]').length },
+    dom: {
+      readyPanels: document.querySelectorAll('[data-panel-status="ready"]').length,
+      stoppedPanels: document.querySelectorAll('[data-panel-status="stopped"], [data-panel-status="error"]').length,
+    },
     error: document.querySelector(".pill-error, .pill-warn")?.textContent ?? null,
   }));
 
@@ -172,6 +179,8 @@ cdp.on("Page.screencastFrame", (e) => {
 
 const played = [];
 const results = [];
+/** Errors the pill showed without ending the call. */
+const pillErrors = new Set();
 let failed = null;
 try {
   await page.mouse.move(pos.x, pos.y);
@@ -186,7 +195,6 @@ try {
   for (const [i, text] of LINES.entries()) {
     await waitForStatus("listening", 800, 60_000);
     const before = await state();
-    if (i === 4) memo.revisionBeforeThanks = before.trip.revision;
     log(`caller: "${text}"`);
     const line = await page.evaluate((b64) => window.__fakeMic.say(b64), VOICE[i]);
     played.push({ index: i, ...line });
@@ -197,7 +205,8 @@ try {
     for (;;) {
       const s = await state();
       if (s.status === "error") throw new Error(`the call failed: ${s.error}`);
-      why = CHECKS[i](s.trip, s.dom);
+      if (s.error) pillErrors.add(s.error);
+      why = CHECKS[i](s.trip, s.dom, before.trip);
       // Line 5 must hold for the whole window; the others pass as soon as the plan is right.
       if (i !== 4 && !why) break;
       // The model finished its turn (changed the plan, back to listening) and the plan is still wrong.
@@ -235,7 +244,7 @@ try {
   const final = await state().catch(() => null);
   const events = await page.evaluate(() => window.__events ?? []).catch(() => []);
   fs.writeFileSync(path.join(TAKE, "events.json"), JSON.stringify(events.map((e) => ({ ...e, t: e.t - t0 })), null, 2));
-  fs.writeFileSync(path.join(TAKE, "result.json"), JSON.stringify({ ok: !failed, results, error: failed?.message ?? null, trip: final?.trip }, null, 2));
+  fs.writeFileSync(path.join(TAKE, "result.json"), JSON.stringify({ ok: !failed, results, error: failed?.message ?? null, pillErrors: [...pillErrors], trip: final?.trip }, null, 2));
   await browser.close();
 }
 
