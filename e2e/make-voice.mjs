@@ -26,7 +26,8 @@ function envFile() {
 }
 const env = { ...envFile(), ...process.env };
 const key = env.ELEVENLABS_API_KEY;
-const voice = env.ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM";
+// Chris, a casual American male voice from the ElevenLabs default library. Override with ELEVENLABS_VOICE_ID.
+const voice = env.ELEVENLABS_VOICE_ID || "iP95p4xoKVk53GoZ742B";
 
 /** A WAV header around 16-bit mono PCM. */
 function wav(pcm, rate) {
