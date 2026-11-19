@@ -2,9 +2,9 @@
 
 Call your app. Talk, and the screen changes.
 
-![A trip plan in calendar view during a call: the call pill at the bottom says "Speaking"](docs/demo.jpg)
+https://github.com/user-attachments/assets/775cdee9-eb87-4776-abba-b90a891745a9
 
-*A frame from a real recorded call: "Put it on my calendar, starting Friday the eleventh."*
+*A real call, sound on: a day in New York, then the calendar, then what it costs with the flight in.*
 
 A desktop trip planner you can phone. Press **Call** and say *"Plan me three days in Lisbon, Friday to Sunday"*, and the plan fills in. *"Move the castle to Saturday morning"* slides the card over. *"Roughly what's this going to cost?"* draws a cost breakdown under the plan. *"Put it on my calendar, starting Friday the eleventh"* turns the days into a calendar.
 
